@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "937645284492",
+    "project_id": "kartikmart-app-38ba3",
+    "storage_bucket": "kartikmart-app-38ba3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:937645284492:android:88bfe8eb2315e16d742fa9",
+        "android_client_info": {
+          "package_name": "com.abhiumale.kartikmartapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAQ28I06-da4I4pM3U3Xni-00CZksHF5A8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
