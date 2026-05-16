@@ -41,15 +41,31 @@ class CheckoutViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
-                val result = if (args.productId == null || args.productId == "null") {
+                val result = if (args.productId == null || args.productId == "null" || args.productId.isBlank()) {
                     repository.getCartProducts()
                 } else {
-                    val singleProduct = repository.getSingleProduct(args.productId!!)
-                    if (singleProduct != null) listOf(singleProduct) else emptyList()
+                    val singleProduct = repository.getSingleProduct(args.productId)
+
+                    if (singleProduct != null) {
+                        listOf(
+                            CartItem(
+                                productId = singleProduct.productId,
+                                name = singleProduct.name,
+                                imageUrl = singleProduct.imageUrl,
+                                price = singleProduct.price,
+                                mrp = singleProduct.mrp,
+                                quantity = if (singleProduct.quantity <= 0) 1 else singleProduct.quantity,
+                                weight = singleProduct.weight
+                            )
+                        )
+                    } else {
+                        android.util.Log.e("CHECKOUT_VM", "Single product NOT found for ID: ${args.productId}")
+                        emptyList()
+                    }
                 }
 
                 if (result.isEmpty()) {
-                    _uiState.update { it.copy(isLoading = false, errorMessage = "No products found") }
+                    _uiState.update { it.copy(isLoading = false, errorMessage = "No products found", products = emptyList()) }
                 } else {
                     calculatePrices(result)
                 }
@@ -62,14 +78,14 @@ class CheckoutViewModel @Inject constructor(
     private fun calculatePrices(items: List<CartItem>) {
         val totalMrp = items.sumOf { it.mrp * it.quantity }
         val totalCurrentPrice = items.sumOf { it.price * it.quantity }
-        val totalSavings = (totalMrp - totalCurrentPrice).toInt()
+        val totalSavings = (totalMrp - totalCurrentPrice)
 
         _uiState.update { state ->
             state.copy(
                 products = items,
                 mrp = totalMrp.toDouble(),
                 savings = totalSavings,
-                totalPay = (totalCurrentPrice + state.deliveryFee).toInt(),
+                totalPay = (totalCurrentPrice + state.deliveryFee),
                 isLoading = false
             )
         }
@@ -98,15 +114,16 @@ class CheckoutViewModel @Inject constructor(
     }
 
     fun fetchUserLocation(context: Context) {
-        val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+        val appContext = context.applicationContext
+        val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
         try {
             fusedLocationClient.lastLocation.addOnSuccessListener { location ->
                 location?.let {
-                    updateAddressFromLocation(context, LatLng(it.latitude, it.longitude))
+                    updateAddressFromLocation(appContext, LatLng(it.latitude, it.longitude))
                 }
             }
         } catch (e: SecurityException) {
-            _uiState.update { it.copy(errorMessage = "Permission denied") }
+            _uiState.update { it.copy(errorMessage = "Permission denied ${e.message}") }
         }
     }
 

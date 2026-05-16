@@ -29,6 +29,8 @@ import com.abhiumale.kartikmartapp.ui.presentation.all_product_screen.TopDealsSc
 import com.abhiumale.kartikmartapp.ui.presentation.checkout.CheckoutScreen
 import com.abhiumale.kartikmartapp.ui.presentation.order_tracking.OrderTrackingScreen
 import com.abhiumale.kartikmartapp.ui.presentation.payment.PaymentScreen
+import com.abhiumale.kartikmartapp.ui.presentation.payment.OrderConfirmationScreen
+import com.abhiumale.kartikmartapp.ui.presentation.notification.NotificationListScreen
 import java.net.URLDecoder
 
 
@@ -119,6 +121,10 @@ fun NavGraph() {
             ProfileScreen(navController)
         }
 
+        composable<Routs.NotificationRouts> {
+            NotificationListScreen(navController)
+        }
+
         composable <Routs.CheckoutScreen>{
             CheckoutScreen(
                 onNavigateToPayment = { orderId, amount ->
@@ -138,12 +144,21 @@ fun NavGraph() {
             )
         }
 
+        composable<Routs.OrderConfirmationRouts> { backStackEntry ->
+            val args = backStackEntry.toRoute<Routs.OrderConfirmationRouts>()
+            OrderConfirmationScreen(
+                navController = navController,
+                orderId = args.orderId
+            )
+        }
+
         // Order Tracking Screen
         composable<Routs.OrderTracking> { backStackEntry ->
             // Data retrieve karna bina bundle check kiye
             val trackingArgs: Routs.OrderTracking = backStackEntry.toRoute()
 
             OrderTrackingScreen(
+                navController = navController,
                 orderId = trackingArgs.orderId,
                 eta = trackingArgs.estimatedTime
             )

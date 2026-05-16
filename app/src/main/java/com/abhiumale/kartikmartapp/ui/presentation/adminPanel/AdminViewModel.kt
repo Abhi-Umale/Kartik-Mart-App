@@ -15,7 +15,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AdminViewModel @Inject constructor(
     private val repository: ProductRepository
-) : ViewModel() {
+) : ViewModel()  {
 
     var productCount by mutableStateOf(0)
     var userCount by mutableStateOf(0)

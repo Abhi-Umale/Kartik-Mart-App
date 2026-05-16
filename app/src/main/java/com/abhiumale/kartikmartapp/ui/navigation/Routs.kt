@@ -53,6 +53,9 @@ sealed class Routs {
     ) : Routs()// Arguments pass karne ke liye data class
 
     @Serializable
+    data class OrderConfirmationRouts(val orderId: String) : Routs()
+
+    @Serializable
     data class PaymentRouts(
         val orderId: String,
         val amount: Double
@@ -70,4 +73,7 @@ sealed class Routs {
 
     @Serializable
     object ProfileRouts : Routs()
+
+    @Serializable
+    object NotificationRouts : Routs()
 }

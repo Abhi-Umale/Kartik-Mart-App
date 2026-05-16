@@ -2,6 +2,7 @@ package com.abhiumale.kartikmartapp.ui.presentation.components
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -18,8 +19,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.abhiumale.kartikmartapp.ui.navigation.Routs
+import com.abhiumale.kartikmartapp.ui.presentation.notification.NotificationViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,8 +30,10 @@ fun TopHeader(
     searchQuery: String,
     onSearchChange: (String) -> Unit,
     navController: NavController,
-    onMenuClick: () -> Unit
+    onMenuClick: () -> Unit,
+    notificationViewModel: NotificationViewModel = hiltViewModel()
 ) {
+    val unreadCount by notificationViewModel.unreadCount
 
     TopAppBar(
         modifier = Modifier
@@ -60,7 +65,7 @@ fun TopHeader(
                 ),
                 keyboardOptions = KeyboardOptions(
                     imeAction = ImeAction.Search,
-                    autoCorrect = true
+                    autoCorrectEnabled = true
                 ),
                 keyboardActions = KeyboardActions(
                     onSearch = {
@@ -80,25 +85,42 @@ fun TopHeader(
             }
         },
         actions = {
-            Icon(
-                imageVector = Icons.Default.Notifications,
-                contentDescription = "Notification",
-                tint = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.size(30.dp).padding(end = 4.dp)
-            )
+            Box {
+                IconButton(onClick = {
+                    navController.navigate(Routs.NotificationRouts)
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.Notifications,
+                        contentDescription = "Notification",
+                        tint = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.size(30.dp)
+                    )
+                }
+                
+                if (unreadCount > 0) {
+                    Surface(
+                        modifier = Modifier.size(10.dp).offset(x = 24.dp, y = 8.dp),
+                        shape = CircleShape,
+                        color = Color.Red,
+                        border = BorderStroke(1.dp, Color.White)
+                    ) {}
+                }
+            }
 
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(4.dp))
 
-            Icon(imageVector = Icons.Default.ShoppingCart,
-                contentDescription = "Cart",
-                tint = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.size(30.dp).padding(end = 4.dp)
-                    .clickable{
-                        navController.navigate(Routs.CartRouts) {
-                            launchSingleTop = true
-                        }
-                    }
-            )
+            IconButton(onClick = {
+                navController.navigate(Routs.CartRouts) {
+                    launchSingleTop = true
+                }
+            }) {
+                Icon(
+                    imageVector = Icons.Default.ShoppingCart,
+                    contentDescription = "Cart",
+                    tint = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.size(30.dp)
+                )
+            }
         },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.secondary,

@@ -1,3 +1,13 @@
+import java.util.Properties
+
+// local.properties se key read karne ka logic
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
+}
+val razorpayKey = localProperties.getProperty("RAZORPAY_KEY_ID") ?: ""
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -20,6 +30,7 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "RAZORPAY_KEY_ID", "\"$razorpayKey\"")
     }
 
     buildTypes {
@@ -40,6 +51,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -67,6 +79,7 @@ dependencies {
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.storage)
     implementation(libs.play.services.analytics.impl)
+    implementation(libs.playServicesBase)
     kapt(libs.hilt.android.compiler)
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
@@ -91,10 +104,20 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
     // Google Maps & Location
-    implementation("com.google.android.gms:play-services-maps:18.2.0")
-    implementation("com.google.android.gms:play-services-location:21.2.0") // Location fetch karne ke liye
+    implementation(libs.playServicesMaps)
+    implementation(libs.playServicesLocation)
     implementation("com.google.maps.android:maps-compose:4.3.3")
 
     // Accompanist for Permissions (Jetpack Compose me ease ke liye)
     implementation("com.google.accompanist:accompanist-permissions:0.34.0")
+
+    //Rozerpay integration
+    implementation("com.razorpay:checkout:1.6.41")
+
+    // QR Scanning
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.google.mlkit.barcode.scanning)
+    implementation("com.google.guava:guava:33.0.0-android")
 }

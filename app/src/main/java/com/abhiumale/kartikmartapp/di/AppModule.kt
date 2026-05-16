@@ -46,9 +46,10 @@ object AppModule {
     @Singleton
     fun provideCheckoutRepository(
         database: FirebaseDatabase,
+        firestore: FirebaseFirestore,
         auth: FirebaseAuth,
         cartDao: CartDao
     ): CheckoutRepository {
-        return CheckoutRepository(database, auth, cartDao)
+        return CheckoutRepository(database, firestore, auth, cartDao)
     }
 }
