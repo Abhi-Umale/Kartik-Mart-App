@@ -2,6 +2,7 @@ package com.abhiumale.kartikmartapp.data.repository
 
 import com.abhiumale.kartikmartapp.data.local.dao.CartDao
 import com.abhiumale.kartikmartapp.domain.model.CartItem
+import com.abhiumale.kartikmartapp.domain.model.Order
 import com.abhiumale.kartikmartapp.domain.model.Product
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.*
@@ -19,10 +20,8 @@ class CheckoutRepository @Inject constructor(
     private val auth: FirebaseAuth,
     private val cartDao: CartDao
 ) {
-    // Current user ki ID fetch
     private val userId get() = auth.currentUser?.uid ?: ""
 
-    // Cart se products fetch ka function (Local Room DB se for consistency)
     suspend fun getCartProducts(): List<CartItem> {
         return try {
             cartDao.getCartProducts().first().map {
@@ -33,7 +32,8 @@ class CheckoutRepository @Inject constructor(
                     price = it.price.toInt(),
                     mrp = it.mrp.toInt(),
                     quantity = it.quantity,
-                    weight = ""
+                    category = it.category,
+                    weight = it.weight
                 )
             }
         } catch (e: Exception) {
@@ -41,10 +41,8 @@ class CheckoutRepository @Inject constructor(
         }
     }
 
-    // Single product fetch ka function (Buy Now scenario)
     suspend fun getSingleProduct(productId: String): CartItem? {
         return try {
-            // 1. Try Firestore first
             val firestoreSnapshot = firestore.collection("products").document(productId).get().await()
             val productFromFirestore = firestoreSnapshot.toObject(Product::class.java)
 
@@ -56,11 +54,11 @@ class CheckoutRepository @Inject constructor(
                     price = productFromFirestore.price.toInt(),
                     mrp = productFromFirestore.mrp.toInt(),
                     quantity = 1,
-                    weight = productFromFirestore.weight
+                    weight = productFromFirestore.weight,
+                    category = productFromFirestore.category
                 )
             }
 
-            // 2. Fallback to Realtime Database
             val snapshot = db.getReference("products/$productId").get().await()
             val product = snapshot.getValue(Product::class.java)
             product?.let {
@@ -71,7 +69,8 @@ class CheckoutRepository @Inject constructor(
                     price = it.price.toInt(),
                     mrp = it.mrp.toInt(),
                     quantity = 1,
-                    weight = it.weight
+                    weight = it.weight,
+                    category = it.category
                 )
             }
         } catch (e: Exception) {
@@ -79,7 +78,29 @@ class CheckoutRepository @Inject constructor(
         }
     }
 
-    // Live Tracking ke liye
+    suspend fun placeOrder(order: Order) {
+        // 1. Save to Firestore
+        firestore.collection("orders").document(order.orderId).set(order).await()
+
+        // 2. Clear Cart
+        cartDao.clearCart()
+
+        // 3. Admin Notification
+        val notificationId = "NT${System.currentTimeMillis()}"
+        val notification = mapOf(
+            "id" to notificationId,
+            "title" to "New Order Received!",
+            "message" to "Order for ₹${order.totalAmount} by ${order.userName}",
+            "orderId" to order.orderId,
+            "userName" to order.userName,
+            "userPhone" to order.phone,
+            "amount" to order.totalAmount,
+            "timestamp" to System.currentTimeMillis(),
+            "isRead" to false
+        )
+        firestore.collection("admin_notifications").document(notificationId).set(notification).await()
+    }
+
     fun getLiveLocation(orderId: String) = callbackFlow<LatLng> {
         if (orderId.isBlank()) {
             trySend(LatLng(18.5204, 73.8567))
@@ -95,7 +116,6 @@ class CheckoutRepository @Inject constructor(
                 trySend(LatLng(lat, lng))
             }
             override fun onCancelled(e: DatabaseError) {
-                android.util.Log.e("FirebaseTracking", "Permission denied or cancelled: ${e.message}")
                 close()
             }
         }

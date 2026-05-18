@@ -5,12 +5,15 @@ import androidx.compose.runtime.State
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.abhiumale.kartikmartapp.data.remote.FirebaseAuthSource
+import com.abhiumale.kartikmartapp.domain.model.Order
+import com.abhiumale.kartikmartapp.domain.model.CartItem
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.abhiumale.kartikmartapp.ui.notification.NotificationUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 @HiltViewModel
@@ -35,67 +38,83 @@ class PaymentViewModel @Inject constructor(
         }
     }
 
-    fun placeOrder(orderId: String, amount: Double, paymentMethod: String, onComplete: () -> Unit) {
+    fun placeOrder(orderId: String, amount: Double, paymentMethod: String, address: String? = null, onComplete: () -> Unit) {
         viewModelScope.launch {
-            val uid = auth.currentUser?.uid ?: return@launch
+            val user = auth.currentUser
+            val uid = user?.uid ?: return@launch
             val userName = userData.value?.get("name")?.toString() ?: "User"
+            val userPhone = userData.value?.get("phone")?.toString() ?: ""
             
-            // Fetch cart products to include in order
+            // Generate 4-digit OTP
+            val otp = (1000..9999).random().toString()
+
+            val userAddress = address ?: userData.value?.get("address")?.toString() ?: "No address found"
+
             val cartItems = checkoutRepository.getCartProducts()
 
-            val order = mapOf(
-                "orderId" to orderId,
-                "userId" to uid,
-                "userName" to userName,
-                "totalAmount" to amount,
-                "status" to "Pending", // Initially Pending for Admin
-                "paymentMethod" to paymentMethod,
-                "items" to cartItems.map { 
-                    mapOf(
-                        "productId" to it.productId,
-                        "name" to it.name,
-                        "quantity" to it.quantity,
-                        "price" to it.price,
-                        "image" to it.imageUrl
-                    )
-                },
-                "timestamp" to System.currentTimeMillis()
+            val order = Order(
+                orderId = orderId,
+                userId = uid,
+                userName = userName,
+                totalAmount = amount,
+                status = "Accepted",
+                paymentMethod = paymentMethod,
+                items = cartItems,
+                timestamp = System.currentTimeMillis(),
+                address = userAddress,
+                phone = userPhone,
+                deliveryOtp = otp
             )
 
-            firestore.collection("orders").document(orderId)
-                .set(order)
-                .addOnSuccessListener { 
-                    sendOrderNotifications(orderId, amount, userName, uid)
-                    onComplete() 
-                }
+            try {
+                firestore.collection("orders").document(orderId).set(order).await()
+                sendOrderNotifications(orderId, amount, userName, userPhone, uid, paymentMethod)
+                onComplete()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
-    private fun sendOrderNotifications(orderId: String, amount: Double, userName: String, userId: String) {
+    private fun sendOrderNotifications(orderId: String, amount: Double, userName: String, userPhone: String, userId: String, paymentMethod: String) {
         val userNotification = mapOf(
             "userId" to userId,
-            "title" to "Order Placed Successfully! 🎉",
-            "message" to "Your order #$orderId of ₹$amount has been placed. We'll update you soon.",
+            "title" to if (paymentMethod == "COD") "Order Placed! 🛍️" else "Order & Payment Success! 🎉",
+            "message" to "Order #$orderId of ₹$amount successful. Status: Pending.",
             "timestamp" to System.currentTimeMillis(),
             "isRead" to false,
             "type" to "order"
         )
         firestore.collection("notifications").add(userNotification)
 
-        // Local Notification for immediate feedback
         NotificationUtils.showNotification(
             context,
-            "Order Placed Successfully! 🎉",
+            if (paymentMethod == "COD") "Order Placed! 🛍️" else "Order & Payment Success! 🎉",
             "Your order #$orderId of ₹$amount has been placed."
         )
 
-        // Admin Notification
-        notifyAdmin(orderId, amount, userName)
+        notifyAdmin(orderId, amount, userName, userPhone)
+    }
+
+    fun notifyAdmin(orderId: String, amount: Double, userName: String, userPhone: String) {
+        val adminNotification = mapOf(
+            "id" to "NT${System.currentTimeMillis()}",
+            "title" to "New Order Received! 🛍️",
+            "message" to "New order for ₹$amount from $userName ($userPhone)",
+            "orderId" to orderId,
+            "userName" to userName,
+            "userPhone" to userPhone,
+            "amount" to amount,
+            "timestamp" to System.currentTimeMillis(),
+            "isRead" to false
+        )
+        firestore.collection("admin_notifications").document(adminNotification["id"].toString()).set(adminNotification)
     }
 
     fun handlePaymentResult(success: Boolean, orderId: String, amount: Double, error: String? = null) {
         val uid = auth.currentUser?.uid ?: return
         val userName = userData.value?.get("name")?.toString() ?: "User"
+        val userPhone = userData.value?.get("phone")?.toString() ?: ""
 
         if (success) {
             val title = "Payment Successful! ✅"
@@ -114,13 +133,17 @@ class PaymentViewModel @Inject constructor(
             NotificationUtils.showNotification(context, title, message)
 
             val adminPaymentNotif = mapOf(
+                "id" to "NT_PAY_${System.currentTimeMillis()}",
                 "title" to "Payment Received! 💰",
-                "message" to "₹$amount credited from $userName for order #$orderId.",
+                "message" to "₹$amount credited from $userName ($userPhone) for order #$orderId.",
                 "timestamp" to System.currentTimeMillis(),
                 "orderId" to orderId,
-                "read" to false
+                "userName" to userName,
+                "userPhone" to userPhone,
+                "amount" to amount,
+                "isRead" to false
             )
-            firestore.collection("admin_notifications").add(adminPaymentNotif)
+            firestore.collection("admin_notifications").document(adminPaymentNotif["id"].toString()).set(adminPaymentNotif)
         } else {
             val title = "Payment Failed! ❌"
             val message = "Your payment for order #$orderId was unsuccessful."
@@ -138,16 +161,4 @@ class PaymentViewModel @Inject constructor(
             NotificationUtils.showNotification(context, title, message)
         }
     }
-
-    fun notifyAdmin(orderId: String, amount: Double, userName: String) {
-        val adminNotification = mapOf(
-            "message" to "New Order Received from $userName",
-            "orderId" to orderId,
-            "amount" to amount,
-            "timestamp" to System.currentTimeMillis(),
-            "read" to false
-        )
-        firestore.collection("admin_notifications").add(adminNotification)
-    }
-
 }

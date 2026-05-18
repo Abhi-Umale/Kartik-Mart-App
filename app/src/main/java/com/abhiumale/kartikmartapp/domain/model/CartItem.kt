@@ -10,5 +10,6 @@ data class CartItem(
     val price: Int = 0,
     val mrp: Int = 0,
     val quantity: Int = 1,
-    val weight: String = ""
+    val weight: String = "",
+    val category: String = ""
 )

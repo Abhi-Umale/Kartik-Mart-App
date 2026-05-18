@@ -11,6 +11,8 @@ import com.abhiumale.kartikmartapp.ui.theme.KartikMartAppTheme
 import com.razorpay.Checkout
 import com.razorpay.PaymentResultListener
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.MainScope
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity(), PaymentResultListener {
@@ -29,9 +31,9 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
     }
 
     override fun onPaymentSuccess(razorpayPaymentId: String?) {
-        // Since we don't have direct access to amount/orderId here without a shared state, 
-        // we'll show a general local notification. 
-        // For real-time updates, the backend or shared state should handle the Firestore update.
+        kotlinx.coroutines.MainScope().launch {
+            com.abhiumale.kartikmartapp.ui.presentation.payment.PaymentResultRegistry.paymentResults.emit(true)
+        }
         NotificationUtils.showNotification(
             this, 
             "Payment Successful! ✅", 
@@ -41,6 +43,9 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
     }
 
     override fun onPaymentError(code: Int, response: String?) {
+        kotlinx.coroutines.MainScope().launch {
+            com.abhiumale.kartikmartapp.ui.presentation.payment.PaymentResultRegistry.paymentResults.emit(false)
+        }
         NotificationUtils.showNotification(
             this, 
             "Payment Failed! ❌", 

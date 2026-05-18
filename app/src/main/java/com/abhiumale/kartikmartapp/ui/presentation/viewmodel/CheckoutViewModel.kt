@@ -9,9 +9,11 @@ import androidx.navigation.toRoute
 import com.abhiumale.kartikmartapp.data.repository.CheckoutRepository
 import com.abhiumale.kartikmartapp.domain.model.CartItem
 import com.abhiumale.kartikmartapp.domain.model.CheckoutUiState
+import com.abhiumale.kartikmartapp.domain.model.Order
 import com.abhiumale.kartikmartapp.ui.navigation.Routs
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.model.LatLng
+import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +27,7 @@ import javax.inject.Inject
 @HiltViewModel
 class CheckoutViewModel @Inject constructor(
     private val repository: CheckoutRepository,
+    private val auth: FirebaseAuth,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -41,25 +44,16 @@ class CheckoutViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
-                val result = if (args.productId == null || args.productId == "null" || args.productId.isBlank()) {
+                val productId = args.productId
+                val result = if (productId == null || productId == "null" || productId.isBlank()) {
                     repository.getCartProducts()
                 } else {
-                    val singleProduct = repository.getSingleProduct(args.productId)
+                    val singleProduct = repository.getSingleProduct(productId)
 
                     if (singleProduct != null) {
-                        listOf(
-                            CartItem(
-                                productId = singleProduct.productId,
-                                name = singleProduct.name,
-                                imageUrl = singleProduct.imageUrl,
-                                price = singleProduct.price,
-                                mrp = singleProduct.mrp,
-                                quantity = if (singleProduct.quantity <= 0) 1 else singleProduct.quantity,
-                                weight = singleProduct.weight
-                            )
-                        )
+                        listOf(singleProduct)
                     } else {
-                        android.util.Log.e("CHECKOUT_VM", "Single product NOT found for ID: ${args.productId}")
+                        android.util.Log.e("CHECKOUT_VM", "Single product NOT found for ID: $productId")
                         emptyList()
                     }
                 }
@@ -130,12 +124,10 @@ class CheckoutViewModel @Inject constructor(
     fun updateAddressFromLocation(context: Context, latLng: LatLng) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                if (!Geocoder.isPresent()) return@launch // Check if geocoder is available
+                if (!Geocoder.isPresent()) return@launch
 
                 val geocoder = Geocoder(context, Locale.getDefault())
                 val addresses = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1)
-
-                // Safe way to get address: use firstOrNull() instead of get(0)
                 val addressLine = addresses?.firstOrNull()?.getAddressLine(0) ?: "Address not found"
 
                 withContext(Dispatchers.Main) {
@@ -145,6 +137,33 @@ class CheckoutViewModel @Inject constructor(
                 withContext(Dispatchers.Main) {
                     _uiState.update { it.copy(errorMessage = "Failed to fetch address: ${e.message}") }
                 }
+            }
+        }
+    }
+
+    fun placeOrder(orderId: String, onComplete: (String) -> Unit) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            try {
+                val user = auth.currentUser
+                // Normally we'd fetch extra user data from Firestore (phone etc.)
+                // But for now let's use what we have or placeholder
+                val order = Order(
+                    orderId = orderId,
+                    userId = user?.uid ?: "",
+                    userName = user?.displayName ?: "User",
+                    items = _uiState.value.products,
+                    totalAmount = _uiState.value.totalPay.toDouble(),
+                    status = "Pending",
+                    timestamp = System.currentTimeMillis(),
+                    paymentMethod = "Online",
+                    address = _uiState.value.userAddress,
+                    phone = user?.phoneNumber ?: ""
+                )
+                repository.placeOrder(order)
+                onComplete(orderId)
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isLoading = false, errorMessage = e.message) }
             }
         }
     }

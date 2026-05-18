@@ -38,7 +38,7 @@ import com.google.accompanist.permissions.rememberPermissionState
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun CheckoutScreen(
-    onNavigateToPayment: (String, Double) -> Unit, // Updated for payment
+    onNavigateToPayment: (String, Double, String) -> Unit, // Updated for payment & address
     viewModel: CheckoutViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -63,7 +63,7 @@ fun CheckoutScreen(
             Button(
                 onClick = {
                     val orderId = "KM${System.currentTimeMillis()}"
-                    onNavigateToPayment(orderId, checkoutState.totalPay.toDouble())
+                    onNavigateToPayment(orderId, checkoutState.totalPay.toDouble(), checkoutState.userAddress)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -71,7 +71,11 @@ fun CheckoutScreen(
                     .height(50.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD700)),
                 shape = RoundedCornerShape(16.dp),
-                enabled = !checkoutState.isLoading && checkoutState.products.isNotEmpty()
+                enabled = !checkoutState.isLoading && 
+                          checkoutState.products.isNotEmpty() && 
+                          checkoutState.userAddress.isNotBlank() && 
+                          !checkoutState.userAddress.contains("Fetching") &&
+                          !checkoutState.userAddress.contains("not found")
             ) {
                 Text(
                     "Continue to Payment",

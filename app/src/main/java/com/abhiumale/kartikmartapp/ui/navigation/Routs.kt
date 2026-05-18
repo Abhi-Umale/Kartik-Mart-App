@@ -58,7 +58,8 @@ sealed class Routs {
     @Serializable
     data class PaymentRouts(
         val orderId: String,
-        val amount: Double
+        val amount: Double,
+        val address: String
     ) : Routs()
 
     @Serializable
@@ -76,4 +77,7 @@ sealed class Routs {
 
     @Serializable
     object NotificationRouts : Routs()
+
+    @Serializable
+    object AdminNotificationRouts : Routs()
 }

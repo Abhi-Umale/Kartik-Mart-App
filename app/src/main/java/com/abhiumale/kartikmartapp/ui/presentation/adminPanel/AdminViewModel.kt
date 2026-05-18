@@ -89,6 +89,27 @@ class AdminViewModel @Inject constructor(
         }
     }
 
+    fun verifyDeliveryOtp(orderId: String, enteredOtp: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val order = orders.find { it.orderId == orderId }
+                if (order != null && order.deliveryOtp == enteredOtp) {
+                    updateOrderStatus(orderId, "Delivered")
+                    onSuccess()
+                } else {
+                    onError("Invalid OTP. Please check with the customer.")
+                }
+            } catch (e: Exception) {
+                onError(e.message ?: "Verification failed")
+            }
+        }
+    }
+
+    fun requestOtp(orderId: String, phone: String) {
+        // In a real app, you'd trigger an SMS service here.
+        android.util.Log.d("OTP_SYSTEM", "OTP Request sent to $phone for Order $orderId")
+    }
+
     fun fetchUsers() {
         viewModelScope.launch {
             isLoading = true

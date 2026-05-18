@@ -4,6 +4,9 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -20,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +37,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.abhiumale.kartikmartapp.ui.navigation.Routs
 import com.abhiumale.kartikmartapp.ui.notification.showOrderNotification
+import kotlinx.coroutines.launch
 
 @SuppressLint("ContextCastToActivity")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,14 +46,51 @@ fun PaymentScreen(
     navController: NavController,
     orderId: String,
     amount: Double,
+    address: String,
     viewModel: PaymentViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current as Activity
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     var selectedMethod by remember { mutableStateOf("RAZORPAY") }
     val userMap by viewModel.userData
 
     val realEmail = userMap?.get("email")?.toString() ?: ""
     val realPhone = userMap?.get("phone")?.toString() ?: ""
+    val userName = userMap?.get("name")?.toString() ?: "User"
+
+    val upiLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val data = result.data
+        val response = data?.getStringExtra("response") ?: ""
+        
+        // Check if UPI payment is success
+        if (response.lowercase().contains("success")) {
+            scope.launch { PaymentResultRegistry.paymentResults.emit(true) }
+        } else if (response.lowercase().contains("cancel") || response.isEmpty()) {
+            // Some UPI apps don't return "success" but the user might have paid. 
+            // For safety in this fix, we assume failure if not explicitly success.
+            Toast.makeText(context, "Payment Not Confirmed", Toast.LENGTH_SHORT).show()
+            scope.launch { PaymentResultRegistry.paymentResults.emit(false) }
+        } else {
+            scope.launch { PaymentResultRegistry.paymentResults.emit(false) }
+        }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        PaymentResultRegistry.paymentResults.collect { success ->
+            if (success) {
+                viewModel.handlePaymentResult(true, orderId, amount)
+                viewModel.placeOrder(orderId, amount, selectedMethod, address) {
+                    navController.navigate(Routs.OrderConfirmationRouts(orderId)) {
+                        popUpTo(Routs.PaymentRouts(orderId, amount, address)) { inclusive = true }
+                    }
+                }
+            } else {
+                viewModel.handlePaymentResult(false, orderId, amount, "Payment failed or cancelled")
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -106,10 +148,10 @@ fun PaymentScreen(
                 onSelect = { selectedMethod = "RAZORPAY" }
             )
 
-            // QR Scanner (Simplified for now)
+            // QR Scanner
             PaymentOptionTile(
                 title = "QR Scanner",
-                subtitle = "Scan and Pay directly",
+                subtitle = "Scan Admin QR and Pay",
                 isSelected = selectedMethod == "QR_SCAN",
                 icon = Icons.Default.QrCodeScanner,
                 onSelect = { selectedMethod = "QR_SCAN" }
@@ -130,8 +172,11 @@ fun PaymentScreen(
                     onDismiss = { showQRScanner = false },
                     onCodeScanned = { code ->
                         showQRScanner = false
-                        viewModel.placeOrder(orderId, amount, "QR_SCAN") {
-                            navController.navigate(Routs.OrderConfirmationRouts(orderId))
+                        if (code.contains("upi://pay")) {
+                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(code))
+                             upiLauncher.launch(intent)
+                        } else {
+                            Toast.makeText(context, "Invalid QR Code", Toast.LENGTH_SHORT).show()
                         }
                     }
                 )
@@ -142,38 +187,30 @@ fun PaymentScreen(
 
             Button(
                 onClick = {
-                    val userName = userMap?.get("name")?.toString() ?: "A User"
                     when (selectedMethod) {
                         "RAZORPAY" -> {
                             startRazorpayPayment(context, amount, orderId, realEmail, realPhone)
+                            // Note: Confirmation navigation happens in MainActivity on success
                         }
                         "UPI_DIRECT" -> {
                             val upiId = "abhiumale@okaxis" 
-                            val name = "Kartik Mart"
+                            val name = "Kartik Mart Admin"
                             val uri = Uri.parse("upi://pay?pa=$upiId&pn=$name&am=$amount&cu=INR&tn=Order_$orderId")
                             val intent = Intent(Intent.ACTION_VIEW, uri)
                             val chooser = Intent.createChooser(intent, "Pay with")
                             try {
-                                context.startActivity(chooser)
-                                viewModel.placeOrder(orderId, amount, "UPI_DIRECT") {
-                                    navController.navigate(Routs.OrderConfirmationRouts(orderId))
-                                }
+                                upiLauncher.launch(chooser)
                             } catch (e: Exception) {
-                                android.widget.Toast.makeText(context, "No UPI app found", android.widget.Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "No UPI app found", Toast.LENGTH_SHORT).show()
                             }
                         }
                         "QR_SCAN" -> {
                             showQRScanner = true
                         }
                         "COD" -> {
-                            viewModel.placeOrder(orderId, amount, "COD") {
-                                // 1. User ko Notification dikhao
-                                showOrderNotification(context, orderId)
-                                // 2. Admin ke liye Firebase mein data dalo
-                                viewModel.notifyAdmin(orderId, amount, userName)
-                                // 3. Navigate karo
+                            viewModel.placeOrder(orderId, amount, "COD", address) {
                                 navController.navigate(Routs.OrderConfirmationRouts(orderId)) {
-                                    popUpTo(Routs.PaymentRouts(orderId, amount)) { inclusive = true }
+                                    popUpTo(Routs.PaymentRouts(orderId, amount, address)) { inclusive = true }
                                 }
                             }
                         }

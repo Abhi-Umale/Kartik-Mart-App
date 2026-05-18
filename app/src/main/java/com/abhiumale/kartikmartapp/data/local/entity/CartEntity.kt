@@ -11,5 +11,7 @@ data class CartEntity(
     val price: Double,
     val mrp: Double,
     val image: String,
-    val quantity: Int = 1
+    val quantity: Int = 1,
+    val category: String = "",
+    val weight: String = ""
 )

@@ -38,6 +38,7 @@ fun AdminHomeScreen(
         AdminOption("Categories", Icons.Default.Category, Color(0xFFE91E63), Routs.AdminCategoriesRouts),
         AdminOption("Brands", Icons.Default.BrandingWatermark, Color(0xFF795548), Routs.AdminBrandsRouts),
         AdminOption("Coupons", Icons.Default.ConfirmationNumber, Color(0xFF00BCD4), Routs.AdminCouponsRouts),
+        AdminOption("Notifications", Icons.Default.Notifications, Color(0xFFFFC107), Routs.AdminNotificationRouts),
         AdminOption("Settings", Icons.Default.Settings, Color(0xFF607D8B), Routs.AdminSettingsRouts),
         AdminOption("Profile", Icons.Default.Person, Color(0xFF673AB7), Routs.AdminProfileRouts)
     )
@@ -47,6 +48,9 @@ fun AdminHomeScreen(
             TopAppBar(
                 title = { Text("Kartik Mart Admin", fontWeight = FontWeight.Bold) },
                 actions = {
+                    IconButton(onClick = { navController.navigate(Routs.AdminNotificationRouts) }) {
+                        Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                    }
                     IconButton(onClick = {
                         authViewModel.logout()
                         navController.navigate(Routs.LoginRouts) { popUpTo(0) }

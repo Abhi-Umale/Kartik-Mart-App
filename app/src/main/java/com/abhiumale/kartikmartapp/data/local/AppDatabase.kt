@@ -12,7 +12,7 @@ import com.abhiumale.kartikmartapp.data.local.entity.ProductEntity
         ProductEntity::class,
         CartEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 

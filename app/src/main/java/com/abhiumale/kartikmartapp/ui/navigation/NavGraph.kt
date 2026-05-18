@@ -16,6 +16,7 @@ import com.abhiumale.kartikmartapp.ui.presentation.adminPanel.AdminBrandsScreen
 import com.abhiumale.kartikmartapp.ui.presentation.adminPanel.AdminCouponsScreen
 import com.abhiumale.kartikmartapp.ui.presentation.adminPanel.AdminSettingsScreen
 import com.abhiumale.kartikmartapp.ui.presentation.adminPanel.AdminProfileScreen
+import com.abhiumale.kartikmartapp.ui.presentation.adminPanel.AdminNotificationScreen
 import com.abhiumale.kartikmartapp.ui.presentation.adminPanel.components.AdminPlaceholderScreen
 import com.abhiumale.kartikmartapp.ui.presentation.cartscreen.CartScreen
 import com.abhiumale.kartikmartapp.ui.presentation.homescreen.HomeScreen
@@ -80,6 +81,7 @@ fun NavGraph() {
         composable<Routs.AdminCouponsRouts> { AdminCouponsScreen(navController) }
         composable<Routs.AdminSettingsRouts> { AdminSettingsScreen(navController) }
         composable<Routs.AdminProfileRouts> { AdminProfileScreen(navController) }
+        composable<Routs.AdminNotificationRouts> { AdminNotificationScreen(navController) }
 
         composable<Routs.CartRouts> {
             CartScreen(navController)
@@ -127,8 +129,8 @@ fun NavGraph() {
 
         composable <Routs.CheckoutScreen>{
             CheckoutScreen(
-                onNavigateToPayment = { orderId, amount ->
-                    navController.navigate(Routs.PaymentRouts(orderId, amount)) {
+                onNavigateToPayment = { orderId, amount, address ->
+                    navController.navigate(Routs.PaymentRouts(orderId, amount, address)) {
                         launchSingleTop = true
                     }
                 }
@@ -140,7 +142,8 @@ fun NavGraph() {
             PaymentScreen(
                 navController = navController,
                 orderId = args.orderId,
-                amount = args.amount
+                amount = args.amount,
+                address = args.address
             )
         }
 
